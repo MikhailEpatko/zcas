@@ -31,6 +31,9 @@ const ZCODE_V2_DIR = path.join(HOME, '.zcode', 'v2');
 const CREDENTIALS_FILE = path.join(ZCODE_V2_DIR, 'credentials.json');
 const CONFIG_FILE = path.join(ZCODE_V2_DIR, 'config.json');
 
+// Состояние телеметрии клиента: deviceMid — идентификатор этого устройства (клиент шлёт его в заголовке X-Device-Mid)
+const TELEMETRY_STATE_FILE = path.join(ZCODE_V2_DIR, 'telemetry-state.json');
+
 // ---- Windows: каталоги установки клиента ZCode (по приоритету; первый существующий будет выбран) ----
 // Измерено на текущей машине: C:\Program Files\ZCode\ZCode.exe
 const PROGRAM_FILES = process.env.ProgramFiles || 'C:\\Program Files';
@@ -260,6 +263,7 @@ module.exports = {
   ZCODE_V2_DIR,
   CREDENTIALS_FILE,
   CONFIG_FILE,
+  TELEMETRY_STATE_FILE,
   ZCODE_EXE_CANDIDATES,
   ZCODE_EXE_CANDIDATES_MAC,
   LINUX_APPIMAGE_DIRS,

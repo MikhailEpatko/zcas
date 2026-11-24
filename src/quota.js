@@ -6,11 +6,13 @@
  * и возвращает сводку: всего / использовано / остаток.
  */
 const fs = require('fs');
-const { CREDENTIALS_FILE, CONFIG_FILE } = require('./paths');
+const crypto = require('crypto');
+const { CREDENTIALS_FILE, CONFIG_FILE, TELEMETRY_STATE_FILE } = require('./paths');
 const { decrypt, isEncrypted } = require('./zcodeCrypto');
 
 const BILLING_CURRENT_URL = 'https://zcode.z.ai/api/v1/zcode-plan/billing/current';
 const BILLING_BALANCE_URL = 'https://zcode.z.ai/api/v1/zcode-plan/billing/balance';
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 async function getQuotaOverview() {
   const tokens = readCandidateTokens();
@@ -36,11 +38,19 @@ async function queryQuotaByTokens(tokens) {
         raw: { current: current.data, balance: balance.data },
       };
     } catch (e) {
+      // 401/403 означает, что этот token не подходит — продолжаем со следующим кандидатом (без break).
+      // Прочие ошибки (сеть, 400/5xx) от token не зависят — возвращаем их сразу: иначе настоящая причина
+      // потеряется за 401 от запасного OAuth-токена
+      if (!isAuthorizationError(e)) throw e;
       lastError = e;
-      // 401/403 означает, что этот token не подходит — продолжаем со следующим кандидатом (без break)
     }
   }
   throw lastError || new Error('Не удалось запросить квоту');
+}
+
+/** Ошибка запроса, означающая, что token не подходит (см. queryQuotaByTokens) */
+function isAuthorizationError(error) {
+  return !!error && (error.status === 401 || error.status === 403);
 }
 
 function getAccountQuota(id) {
@@ -57,6 +67,7 @@ async function fetchBilling(url, token) {
     headers: {
       accept: 'application/json, text/plain, */*',
       authorization: 'Bearer ' + token,
+      'X-Device-Mid': readDeviceMid(),
     },
   });
   const text = await response.text();
@@ -64,9 +75,27 @@ async function fetchBilling(url, token) {
   try { data = text ? JSON.parse(text) : null; } catch (_) { data = text; }
   if (!response.ok) {
     const msg = typeof data === 'object' && data ? (data.message || data.msg || data.error) : text;
-    throw new Error(`HTTP ${response.status} от интерфейса квоты: ${msg || response.statusText}`);
+    const error = new Error(`HTTP ${response.status} от интерфейса квоты: ${msg || response.statusText}`);
+    error.status = response.status;
+    throw error;
   }
   return { status: response.status, data };
+}
+
+/**
+ * deviceMid — идентификатор устройства, который клиент отправляет в заголовке X-Device-Mid со всеми
+ * запросами к zcode.z.ai (Источник реверса: ZCode app.asar out/host, buildZCodeSourceHeadersFromContext;
+ * значение — deviceMid из telemetry-state.json).
+ *
+ * Без заголовка billing/balance отвечает 400 «parameter error» (code 3001). Серверу достаточно любого UUID,
+ * поэтому если в файле нет пригодного значения — генерируем свой.
+ * @param {string} [filePath]
+ * @returns {string} UUID
+ */
+function readDeviceMid(filePath = TELEMETRY_STATE_FILE) {
+  const stored = readJson(filePath);
+  const deviceMid = stored && typeof stored.deviceMid === 'string' ? stored.deviceMid.trim() : '';
+  return UUID_PATTERN.test(deviceMid) ? deviceMid : crypto.randomUUID();
 }
 
 function readBestToken() {
@@ -288,9 +317,11 @@ module.exports = {
   getQuotaOverview,
   getAccountQuota,
   queryQuotaByToken,
+  queryQuotaByTokens,
   readBestToken,
   readCandidateTokens,
   readBestTokenFromSnapshot,
   readCandidateTokensFromSnapshot,
+  readDeviceMid,
   normalizeQuota,
 };

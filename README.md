@@ -47,10 +47,10 @@ alias zcas='node ~/path/to/zcode-account-switcher/src/cli.js'
 ### CLI
 
 ```sh
-zcas status                                    # текущий аккаунт + список
-zcas list                                      # все сохранённые аккаунты
-# zcas quota                                     # квота: всего / использовано / остаток / по моделям (in progress)
-zcas capture --name "Основной"                 # сохранить текущий логин как снимок
+zcas status                                     # текущий аккаунт + список
+zcas list                                       # все сохранённые аккаунты
+zcas quota                                      # квота: всего / использовано / остаток / по моделям
+zcas capture --name "Основной"                  # сохранить текущий логин как снимок
 zcas use 2                                      # переключиться на аккаунт №2
 zcas use a869                                   # по id или префиксу id
 zcas rename 2 "Новое имя"                       # переименовать
